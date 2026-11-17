@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { X, Minus, Square, ChevronsUp, Volume2, VolumeX, CloudRain, Mail, Github, Linkedin, Instagram } from "lucide-react";
+import { X, Minus, Square, ChevronsUp, Volume2, VolumeX, Music, Mail, Github, Linkedin, Instagram } from "lucide-react";
 
 /* ==================================================================
    HOW TO ADD A NEW PROJECT
@@ -120,6 +120,10 @@ const PROJECTS = [
         { icon: "github", label: "GitHub", url: "https://github.com/EnCl4" },
         { icon: "instagram", label: "Instagram", url: "https://www.instagram.com/en_cl3/" },
       ]},
+      { t: "credit", title: "Music", lines: [
+        "Track: Everyone Has a Story",
+        { text: "Music by ", url: "https://www.fiftysounds.com", label: "https://www.fiftysounds.com" },
+      ]},
     ],
   },
 ];
@@ -142,17 +146,18 @@ const bevel = {
 
 /* ============================ AUDIO ================================
    Click/open/close SFX are still synthesized with the Web Audio API
-   (no files needed for those). Background rain is a real audio file —
-   drop your file at /audios/rain.mp3 (adjust RAIN_TRACK_SRC below if
-   you name it differently or nest it deeper). One slider still
-   controls both, same as a single Windows volume control.
+   (no files needed for those). Background music is a real audio file
+   in public/Audio/ (change MUSIC_TRACK_SRC below to swap tracks). One
+   slider controls both, same as a single Windows volume control.
+   Music credit is shown in the "About Me" window.
 ==================================================================== */
-const RAIN_TRACK_SRC = "Audio/rain.mp3";
+const MUSIC_TRACK_SRC = "Audio/everyone-has-a-story.mp3";
+const DEFAULT_VOLUME = 0.2; // 20% when the page opens
 
 function useAudioEngine() {
   const state = useRef({ ctx: null, master: null });
   const audioElRef = useRef(null);
-  const [volume, setVolume] = useState(0.55);
+  const [volume, setVolume] = useState(DEFAULT_VOLUME);
   const [muted, setMuted] = useState(false);
   const [musicOn, setMusicOn] = useState(true);
 
@@ -205,9 +210,9 @@ function useAudioEngine() {
     start: () => { tone(500, 0.06, "triangle", 0.07); tone(760, 0.08, "triangle", 0.06, 0.06); },
   };
 
-  // --- background rain track (real mp3 file) ---
+  // --- background music track (real mp3 file) ---
   useEffect(() => {
-    const audio = new Audio(RAIN_TRACK_SRC);
+    const audio = new Audio(MUSIC_TRACK_SRC);
     audio.loop = true;
     audio.preload = "auto";
     audio.volume = muted ? 0 : volume;
@@ -219,13 +224,13 @@ function useAudioEngine() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // keep rain volume in sync with the same slider used for SFX
+  // keep music volume in sync with the same slider used for SFX
   useEffect(() => {
     const audio = audioElRef.current;
     if (audio) audio.volume = muted ? 0 : volume;
   }, [volume, muted]);
 
-  // play/pause the rain track when the checkbox is toggled
+  // play/pause the music track when the checkbox is toggled
   useEffect(() => {
     const audio = audioElRef.current;
     if (!audio) return;
@@ -233,7 +238,7 @@ function useAudioEngine() {
     else audio.pause();
   }, [musicOn]);
 
-  // first-ever user gesture unlocks both the SFX context and the rain track
+  // first-ever user gesture unlocks both the SFX context and the music track
   useEffect(() => {
     const unlock = () => {
       ensure();
@@ -269,6 +274,24 @@ function MiniBody({ blocks, sfx }) {
                 <figcaption style={{ fontSize: 11, color: "#555", marginTop: 4 }}>{b.caption}</figcaption>
               )}
             </figure>
+          );
+        if (b.t === "credit")
+          return (
+            <div key={i} style={{ fontSize: 11, color: "#555", margin: "16px 0 4px", paddingTop: 8, borderTop: "1px solid #808080" }}>
+              {b.title && <div style={{ fontWeight: 700, color: "#000", marginBottom: 2 }}>{b.title}</div>}
+              {b.lines.map((line, j) =>
+                typeof line === "string" ? (
+                  <div key={j}>{line}</div>
+                ) : (
+                  <div key={j}>
+                    {line.text}
+                    <a href={line.url} target="_blank" rel="noopener noreferrer" style={{ color: "#000080" }}>
+                      {line.label || line.url}
+                    </a>
+                  </div>
+                )
+              )}
+            </div>
           );
         if (b.t === "links")
           return (
@@ -525,7 +548,7 @@ function VolumeTray({ volume, setVolume, muted, setMuted, musicOn, setMusicOn, s
           </label>
           <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, marginTop: 6, cursor: "pointer" }}>
             <input type="checkbox" checked={musicOn} onChange={(e) => setMusicOn(e.target.checked)} />
-            <CloudRain size={12} /> Rain sounds
+            <Music size={12} /> Music
           </label>
         </div>
       )}

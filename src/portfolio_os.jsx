@@ -153,6 +153,10 @@ const bevel = {
 ==================================================================== */
 const MUSIC_TRACK_SRC = "Audio/everyone-has-a-story.mp3";
 const DEFAULT_VOLUME = 0.2; // 20% when the page opens
+// App sounds (click/hover/open/close...) are multiplied by this on top of
+// the slider, so they can be louder without changing the music level.
+// A limiter after it prevents distortion at high slider values.
+const SFX_BOOST = 3;
 
 function useAudioEngine() {
   const state = useRef({ ctx: null, master: null });
@@ -169,8 +173,14 @@ function useAudioEngine() {
     }
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const master = ctx.createGain();
-    master.gain.value = muted ? 0 : volume;
-    master.connect(ctx.destination);
+    master.gain.value = muted ? 0 : volume * SFX_BOOST;
+    const limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -3;
+    limiter.knee.value = 0;
+    limiter.ratio.value = 20;
+    limiter.attack.value = 0.001;
+    limiter.release.value = 0.05;
+    master.connect(limiter).connect(ctx.destination);
     s = { ctx, master };
     state.current = s;
     return s;
@@ -179,7 +189,7 @@ function useAudioEngine() {
   // keep SFX master gain in sync with UI
   useEffect(() => {
     const s = state.current;
-    if (s.master) s.master.gain.setTargetAtTime(muted ? 0 : volume, s.ctx.currentTime, 0.05);
+    if (s.master) s.master.gain.setTargetAtTime(muted ? 0 : volume * SFX_BOOST, s.ctx.currentTime, 0.05);
   }, [volume, muted]);
 
   const tone = useCallback((freqs, dur, type, peak, delay = 0) => {

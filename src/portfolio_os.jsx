@@ -202,8 +202,9 @@ function useAudioEngine() {
 
   const sfx = {
     click: () => tone(620, 0.05, "square", 0.05),
-    hover: () => tone(950, 0.05, "sine", 0.12), // louder/longer so it's audible at the 20% default volume
-    open: () => { tone(420, 0.08, "triangle", 0.09); tone(700, 0.09, "triangle", 0.07, 0.05); },
+    // hover + open are boosted so they're clearly audible at the 20% default volume
+    hover: () => tone(950, 0.06, "sine", 0.25),
+    open: () => { tone(420, 0.1, "triangle", 0.25); tone(700, 0.11, "triangle", 0.2, 0.05); },
     close: () => { tone(500, 0.08, "triangle", 0.08); tone(280, 0.1, "triangle", 0.07, 0.05); },
     minimize: () => tone(300, 0.07, "sine", 0.07),
     maximize: () => tone([500, 640], 0.08, "sine", 0.06),

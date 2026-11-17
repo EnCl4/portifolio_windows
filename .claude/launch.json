@@ -4,8 +4,27 @@
     {
       "name": "pages-sim",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["vite", "preview", "--base", "/portifolio/", "--port", "4174", "--strictPort"],
+      "runtimeArgs": [
+        "vite",
+        "preview",
+        "--base",
+        "/portifolio/",
+        "--port",
+        "4174",
+        "--strictPort"
+      ],
       "port": 4174
+    },
+    {
+      "name": "dev",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "vite",
+        "--port",
+        "5180",
+        "--strictPort"
+      ],
+      "port": 5180
     }
   ]
 }

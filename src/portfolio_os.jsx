@@ -13,6 +13,9 @@ import { PIDLab, KalmanLab, FMEABoard } from "./research_apps";
      icon:    "🛠️",                    // any emoji, shows on desktop + taskbar
      tagline: "One line description",
      tech:    ["Thing A", "Thing B"],  // shown as little tag chips
+     parent:  "other-project-id",      // optional: makes this an app of that
+                                        // project (grouped into its folder,
+                                        // tagged, badged, Start submenu)
      cover:   "https://... or images/your-cover.jpg",
                                         // MAIN picture. Clicking it in the
                                         // window sets it as the desktop wallpaper.
@@ -176,6 +179,7 @@ const PROJECTS = [
     size: { w: 680, h: 640 },
     body: [],
     component: PIDLab,
+    parent: "PowerController",
   },
   {
     id: "kalman",
@@ -187,6 +191,7 @@ const PROJECTS = [
     size: { w: 640, h: 620 },
     body: [],
     component: KalmanLab,
+    parent: "PowerController",
   },
   {
     id: "fmea",
@@ -198,6 +203,7 @@ const PROJECTS = [
     size: { w: 620, h: 600 },
     body: [],
     component: FMEABoard,
+    parent: "PowerController",
   },
   {
     id: "airplane",
@@ -238,6 +244,43 @@ const PROJECTS = [
     ],
   },
 ];
+
+/* ---------------------- PROJECT GROUPING -------------------------
+   An app with `parent: "<project id>"` belongs to that project. It:
+   - shows "App — Project" in its title bar and taskbar button
+   - gets a "Part of: <project>" tag and a badge with the project's icon
+   - moves off the desktop into a folder named after the project
+     (the folder holds the project article + all its apps)
+   - shows in a Start menu submenu for the project
+------------------------------------------------------------------ */
+const FOLDER_PREFIX = "folder:";
+const findProject = (id) => PROJECTS.find((p) => p.id === id);
+const childrenOf = (id) => PROJECTS.filter((p) => p.parent === id);
+const fullTitle = (p) => (p.parent && findProject(p.parent) ? `${p.title} — ${findProject(p.parent).title}` : p.title);
+const badgeOf = (p) => p.badge || (p.parent && findProject(p.parent) ? findProject(p.parent).icon : null);
+
+const FOLDERS = PROJECTS.filter((p) => !p.parent && childrenOf(p.id).length > 0).map((p) => {
+  const items = [p, ...childrenOf(p.id)];
+  return {
+    id: FOLDER_PREFIX + p.id,
+    folderOf: p.id,
+    title: p.title,
+    icon: "📁",
+    badge: p.icon,
+    tagline: `C:\\Projects\\${p.title}\\`,
+    tech: [],
+    cover: null,
+    body: [],
+    size: { w: 460, h: 250 },
+    items,
+    component: function FolderWindow(props) {
+      return <FolderView items={items} {...props} />;
+    },
+  };
+});
+// what sits on the desktop / top level of the Start menu
+const DESKTOP_ITEMS = PROJECTS.filter((p) => !p.parent).map((p) => FOLDERS.find((f) => f.folderOf === p.id) || p);
+const getItem = (id) => findProject(id) || FOLDERS.find((f) => f.id === id);
 
 /* ------------------------- STYLE HELPERS ------------------------- */
 const bevel = {
@@ -501,6 +544,98 @@ function MiniBody({ blocks, sfx, onOpen }) {
   );
 }
 
+/* ------------------------ GROUPING VISUALS ------------------------ */
+// Emoji icon with an optional small badge (the parent project's icon)
+// in the bottom-right corner, like the shortcut arrow on Windows icons.
+function IconGlyph({ icon, badge, size = 30 }) {
+  return (
+    <span style={{ position: "relative", display: "inline-block", fontSize: size, lineHeight: 1 }}>
+      {icon}
+      {badge && (
+        <span
+          aria-hidden
+          style={{
+            position: "absolute",
+            right: -size * 0.3,
+            bottom: -size * 0.12,
+            fontSize: size * 0.42,
+            lineHeight: 1,
+            padding: 1,
+            background: "#c0c0c0",
+            ...bevel.buttonFlat,
+          }}
+        >
+          {badge}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function PartOfTag({ parent, onOpen, sfx }) {
+  return (
+    <button
+      onClick={() => { sfx.click(); onOpen(parent.id); }}
+      onMouseEnter={() => sfx.hover()}
+      title={`Open the ${parent.title} project`}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 5,
+        margin: "0 0 8px",
+        padding: "2px 8px",
+        fontSize: 11,
+        fontFamily: "inherit",
+        color: "#000",
+        background: "#ffffe1",
+        border: "1px solid #808080",
+        cursor: "pointer",
+      }}
+    >
+      📁 Part of: <b>{parent.icon} {parent.title}</b> ▸
+    </button>
+  );
+}
+
+// Explorer-style window listing a project's article + apps.
+function FolderView({ items, sfx, onOpen }) {
+  const [selected, setSelected] = useState(null);
+  return (
+    <div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, padding: 4 }}>
+        {items.map((p) => (
+          <button
+            key={p.id}
+            onClick={() => { setSelected(p.id); onOpen(p.id); }}
+            onMouseEnter={() => sfx.hover()}
+            title={p.tagline}
+            style={{
+              width: 96,
+              padding: "8px 4px 6px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 8,
+              background: "none",
+              border: selected === p.id ? "1px dotted #000080" : "1px solid transparent",
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            <IconGlyph icon={p.icon} badge={badgeOf(p)} size={30} />
+            <span style={{ fontSize: 11, lineHeight: 1.2, color: selected === p.id ? "#fff" : "#000", background: selected === p.id ? "#000080" : "none", padding: "0 2px" }}>
+              {p.parent ? p.title : `${p.title} (article)`}
+            </span>
+          </button>
+        ))}
+      </div>
+      <div style={{ marginTop: 10, padding: "2px 6px", fontSize: 11, color: "#333", ...bevel.sunkenOuter }}>
+        {items.length} object(s)
+      </div>
+    </div>
+  );
+}
+
 /* ---------------------------- WINDOW ------------------------------ */
 function Win95Window({ win, project, isMobile, isActive, onFocus, onClose, onMinimize, onToggleMaximize, onDrag, onResize, onSetWallpaper, onOpenProject, sfx }) {
   const dragRef = useRef({ dragging: false, offX: 0, offY: 0 });
@@ -585,7 +720,7 @@ function Win95Window({ win, project, isMobile, isActive, onFocus, onClose, onMin
       >
         <span style={{ display: "flex", alignItems: "center", gap: 6, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
           <span>{project.icon}</span>
-          {project.title}
+          {fullTitle(project)}
         </span>
         <span style={{ display: "flex", gap: 3 }}>
           {isMobile ? (
@@ -609,6 +744,9 @@ function Win95Window({ win, project, isMobile, isActive, onFocus, onClose, onMin
       </div>
 
       <div style={{ flex: 1, margin: 4, padding: 12, background: "#fff", overflowY: "auto", ...bevel.sunkenOuter }}>
+        {project.parent && findProject(project.parent) && (
+          <PartOfTag parent={findProject(project.parent)} onOpen={onOpenProject} sfx={sfx} />
+        )}
         <div style={{ fontSize: 11, color: "#555", marginBottom: 8 }}>{project.tagline}</div>
 
         {project.cover && (
@@ -633,8 +771,24 @@ function Win95Window({ win, project, isMobile, isActive, onFocus, onClose, onMin
             ))}
           </div>
         )}
+        {childrenOf(project.id).length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, margin: "0 0 10px", padding: "6px 8px", background: "#f0f0f0", ...bevel.sunkenOuter }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "#000080", marginRight: 2 }}>Apps in this project:</span>
+            {childrenOf(project.id).map((c) => (
+              <button
+                key={c.id}
+                onClick={() => onOpenProject(c.id)}
+                onMouseEnter={() => sfx.hover()}
+                style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, padding: "3px 8px", background: "#c0c0c0", border: "none", cursor: "pointer", fontFamily: "inherit", ...bevel.buttonFlat }}
+              >
+                <span>{c.icon}</span>
+                {c.title}
+              </button>
+            ))}
+          </div>
+        )}
         <MiniBody blocks={project.body} sfx={sfx} onOpen={onOpenProject} />
-        {project.component && <project.component sfx={sfx} />}
+        {project.component && <project.component sfx={sfx} onOpen={onOpenProject} />}
       </div>
 
       {!isMobile && !win.maximized && (
@@ -774,8 +928,8 @@ function DesktopIcon({ project, pos, onMove, onOpen, sfx }) {
         zIndex: 1,
       }}
     >
-      <span style={{ fontSize: 30 }}>{project.icon}</span>
-      <span style={{ fontSize: 11, lineHeight: 1.2 }}>{project.title}</span>
+      <IconGlyph icon={project.icon} badge={badgeOf(project)} size={30} />
+      <span style={{ fontSize: 11, lineHeight: 1.2, marginTop: 2 }}>{project.title}</span>
     </button>
   );
 }
@@ -786,12 +940,14 @@ export default function PortfolioOS() {
   const [windows, setWindows] = useState([]);
   const [zTop, setZTop] = useState(1);
   const [startOpen, setStartOpen] = useState(false);
+  const [startSub, setStartSub] = useState(null); // folder whose submenu is open
+  const [hoverStart, setHoverStart] = useState(null);
   const [clock, setClock] = useState(new Date());
   const [wallpaper, setWallpaper] = useState(null);
   const [iconPos, setIconPos] = useState(() => {
     // stack icons in columns that fit above the taskbar
     const perCol = Math.max(1, Math.floor((Math.max(window.innerHeight, 560) - 60) / (ICON_H + 10)));
-    return PROJECTS.reduce((acc, p, i) => {
+    return DESKTOP_ITEMS.reduce((acc, p, i) => {
       acc[p.id] = { x: 16 + Math.floor(i / perCol) * (ICON_W + 12), y: 16 + (i % perCol) * (ICON_H + 10) };
       return acc;
     }, {});
@@ -818,7 +974,7 @@ export default function PortfolioOS() {
       const existing = prev.find((w) => w.id === id);
       if (existing) return prev.map((w) => (w.id === id ? { ...w, minimized: false, z: zTop + 1 } : w));
       const idx = prev.length;
-      const size = (PROJECTS.find((p) => p.id === id) || {}).size || { w: 480, h: 400 };
+      const size = (getItem(id) || {}).size || { w: 480, h: 400 };
       const w = Math.min(size.w, window.innerWidth - 20);
       const h = Math.min(size.h, window.innerHeight - 60);
       const x = Math.max(0, Math.min(100 + idx * 26, window.innerWidth - w - 10));
@@ -851,7 +1007,7 @@ export default function PortfolioOS() {
       style={{ position: "relative", width: "100%", height: "100vh", minHeight: 560, ...desktopBg, fontFamily: "Tahoma, Verdana, sans-serif", overflow: "hidden", userSelect: "none" }}
       onMouseDown={() => setStartOpen(false)}
     >
-      {PROJECTS.map((p) => (
+      {DESKTOP_ITEMS.map((p) => (
         <DesktopIcon
           key={p.id}
           project={p}
@@ -872,7 +1028,7 @@ export default function PortfolioOS() {
       )}
 
       {windows.map((w) => {
-        const project = PROJECTS.find((p) => p.id === w.id);
+        const project = getItem(w.id);
         return (
           <Win95Window
             key={w.id}
@@ -895,25 +1051,65 @@ export default function PortfolioOS() {
 
       {startOpen && (
         <div onMouseDown={(e) => e.stopPropagation()} style={{ position: "absolute", bottom: 40, left: 4, width: 200, background: "#c0c0c0", zIndex: 9999, ...bevel.raisedOuter }}>
-          {PROJECTS.map((p) => (
-            <div
-              key={p.id}
-              onClick={() => openProject(p.id)}
-              style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", fontSize: 13, cursor: "pointer" }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "#000080")}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-            >
-              <span>{p.icon}</span>
-              <span>{p.title}</span>
-            </div>
-          ))}
+          {DESKTOP_ITEMS.map((p) => {
+            const isFolder = !!p.items;
+            const subOpen = isFolder && startSub === p.id;
+            const hot = hoverStart === p.id || subOpen;
+            return (
+              <div
+                key={p.id}
+                style={{ position: "relative" }}
+                onMouseEnter={() => { setHoverStart(p.id); setStartSub(isFolder ? p.id : null); }}
+                onMouseLeave={() => setHoverStart(null)}
+              >
+                <div
+                  onClick={() => {
+                    if (isFolder) { sfx.click(); setStartSub(subOpen ? null : p.id); }
+                    else openProject(p.id);
+                  }}
+                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", fontSize: 13, cursor: "pointer", background: hot ? "#000080" : "transparent", color: hot ? "#fff" : "#000" }}
+                >
+                  <span>{isFolder ? findProject(p.folderOf).icon : p.icon}</span>
+                  <span style={{ flex: 1 }}>{p.title}</span>
+                  {isFolder && <span style={{ fontSize: 10 }}>▶</span>}
+                </div>
+                {subOpen && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      // grow upward: the Start menu sits right above the taskbar
+                      left: isMobile ? 24 : "100%",
+                      bottom: isMobile ? "100%" : 0,
+                      width: 210,
+                      background: "#c0c0c0",
+                      zIndex: 10001,
+                      ...bevel.raisedOuter,
+                    }}
+                  >
+                    {p.items.map((c) => (
+                      <div
+                        key={c.id}
+                        onClick={() => { setStartSub(null); openProject(c.id); }}
+                        style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", fontSize: 13, cursor: "pointer" }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = "#000080"; e.currentTarget.style.color = "#fff"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#000"; }}
+                      >
+                        <span>{c.icon}</span>
+                        <span>{c.parent ? c.title : `${c.title} (article)`}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
       <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 36, background: "#c0c0c0", display: "flex", alignItems: "center", padding: "0 4px", gap: 6, zIndex: 10000, ...bevel.raisedOuter }}>
         <button
           onMouseDown={(e) => e.stopPropagation()}
-          onClick={() => { sfx.start(); setStartOpen((s) => !s); }}
+          onClick={() => { sfx.start(); setStartSub(null); setStartOpen((s) => !s); }}
           style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 10px", fontWeight: 700, fontSize: 13, background: "#c0c0c0", cursor: "pointer", ...bevel.buttonFlat }}
         >
           <ChevronsUp size={14} />
@@ -924,11 +1120,12 @@ export default function PortfolioOS() {
 
         <div style={{ flex: 1, display: "flex", gap: 4, overflowX: "auto" }}>
           {windows.map((w) => {
-            const project = PROJECTS.find((p) => p.id === w.id);
+            const project = getItem(w.id);
             const active = w.id === activeId && !w.minimized;
             return (
               <button
                 key={w.id}
+                title={fullTitle(project)}
                 onClick={() => {
                   sfx.click();
                   if (w.minimized) setWindows((prev) => prev.map((x) => (x.id === w.id ? { ...x, minimized: false } : x)));
@@ -941,7 +1138,7 @@ export default function PortfolioOS() {
                   padding: "3px 10px",
                   fontSize: 12,
                   minWidth: 110,
-                  maxWidth: 150,
+                  maxWidth: 210,
                   overflow: "hidden",
                   whiteSpace: "nowrap",
                   textOverflow: "ellipsis",
@@ -953,7 +1150,7 @@ export default function PortfolioOS() {
                 }}
               >
                 <span>{project.icon}</span>
-                {project.title}
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{fullTitle(project)}</span>
               </button>
             );
           })}

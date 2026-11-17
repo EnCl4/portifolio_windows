@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { X, Minus, Square, ChevronsUp, Volume2, VolumeX, Music, Mail, Github, Linkedin, Instagram } from "lucide-react";
+import { PIDLab, KalmanLab, FMEABoard } from "./research_apps";
 
 /* ==================================================================
    HOW TO ADD A NEW PROJECT
@@ -76,17 +77,127 @@ const PROJECTS = [
     id: "PowerController",
     title: "Power Controller",
     icon: "⚡",
-    tagline: "Automated power management system",
-    tech: ["Arduino", "Relay control", "Sensor integration"],
-    cover: "images/new/new.jpg",
+    tagline: "IGNIS: an embedded PID power limiter for brushless motors in SAE Aerodesign UAVs (scientific initiation research, UFABC 2024–2025)",
+    tech: ["ESP32", "PID control", "Kalman filter", "System identification", "MATLAB / Simulink", "KiCad PCB", "FMEA / FTA"],
+    cover: "images/power-controller/p2-final.jpg",
+    size: { w: 620, h: 600 },
     body: [
       { t: "h", v: "The problem" },
-      { t: "p", v: "System-level requirements get verified against subsystem-level test evidence. Scope mismatch is the hard part, not the retrieval." },
-      { t: "h", v: "Architecture" },
-      { t: "p", v: "Static rules live in the system prompt. Per-call requirement text and retrieved chunks live in the user prompt. Hallucination is fought structurally: mandatory citations, a NOT_STATED_IN_SOURCE field, and a self-verification pass before any verdict is final." },
-      { t: "h", v: "Verdicts" },
-      { t: "p", v: "Met / Met with Deviation / Not Met / Insufficient Evidence, each with cited rationale." },
+      { t: "p", v: "Since 2023, SAE Brasil Aerodesign requires electric propulsion with a power cap in the Regular class: 680 W, and 600 W in 2025. Going over the cap means a penalty. But airspeed, battery sag and the propeller change the load on the motor during the whole flight, so a fixed throttle either goes over the limit or leaves power unused." },
+      { t: "p", v: "The goal was an onboard controller that measures the propulsion system's power in real time and drives the ESC to stay at the limit, while the pilot stays in command. The throttle stick sets the power setpoint (setpoint = throttle × Pmax), so full stick means exactly the legal maximum." },
+      { t: "img", src: "images/power-controller/aircraft.jpg", caption: "Harpia Aerodesign UFABC's 2023 competition aircraft" },
+      { t: "img", src: "images/power-controller/gmp-diagram.jpg", caption: "Propulsion chain: LiPo → wattmeter → ESC → motor + propeller, with the receiver sending PWM to the ESC" },
+      { t: "h", v: "Requirements" },
+      { t: "table", head: ["ID", "Requirement"], rows: [
+        ["RqS.1", "Sensor accuracy ≥ 1 W"],
+        ["RqS.2", "Sensing must not disturb the power system"],
+        ["RqS.3", "Sampling time < 20 ms"],
+        ["RqO.1", "The pilot keeps control in every situation"],
+        ["RqO.2–6", "Works in bad weather, low power draw, light, small, redundant"],
+        ["RqC.1", "Setpoint safety margin of 1 % (673.2 W)"],
+        ["RqC.2", "Steady-state error ±1 %"],
+        ["RqC.3", "Zero overshoot"],
+        ["RqC.4", "Settling time < 1 s"],
+      ]},
+      { t: "h", v: "Choosing the hardware" },
+      { t: "list", items: [
+        "Voltage: a 43k/5k1 resistor divider. Its estimated error is 2.26 W, against 3 W for an INA219 and 30.6 W for a MAX471, and it costs R$0.20.",
+        "Current: a WCS1700 Hall-effect sensor. The motor cable passes through it, so there's no shunt loss (RqS.2), and its thermal drift is low.",
+        "MCU: an ESP32. It's the only dual-core option, which leaves room for redundancy (RqO.6). An external ADS1115 16-bit ADC over I²C replaced the noisy, slow internal ADC.",
+        "Power: a step-down converter instead of a BEC (23.5 mV vs 106 mV ripple). Data is logged to an SD card.",
+      ]},
+      { t: "img", src: "images/power-controller/p1-protoboard.jpg", caption: "Prototype 1 on perfboard: ESP32, ADS1115, SD card module and step-down converter" },
+      { t: "h", v: "Firmware" },
+      { t: "p", v: "Written in C++ with PlatformIO. A modified Servo library accepts float 'angles' for finer PWM resolution, and a circular buffer holds the samples. Sampling and control are separate modules behind boolean switches, so the same firmware runs data-collection tests and closed-loop tests." },
+      { t: "p", v: "Calibration against a lab supply gave linear fits: V = 0.0017283·x + 0.0236 (R² = 1) and I = 0.0065479·x − 88.36 (R² = 0.998)." },
+      { t: "h", v: "Identifying the motor" },
+      { t: "p", v: "Black-box identification: square throttle steps between 20 % and 40 % on an outdoor test bench, kept away from walls so ground effect wouldn't change the load. The first two cycles were discarded, because they showed a delayed start and an odd double peak. The remaining data was split 80/20 for training and validation, at a mean sample time of 11.64 ms (85.9 Hz)." },
+      { t: "img", src: "images/power-controller/test-bench.jpg", caption: "Static test bench with the MN605-S KV320 motor and APC 22×10 propeller" },
+      { t: "img", src: "images/power-controller/gmp-step-test.jpg", caption: "Power response to the throttle steps: at least second order, with clear overshoot" },
+      { t: "p", v: "In MATLAB's System Identification Toolbox, 15 ARX-based transfer functions were compared. The best one, with 5 poles and 5 zeros, fit the validation data at 79.05 %." },
+      { t: "img", src: "images/power-controller/tf-fit.jpg", caption: "Candidate transfer functions vs. validation data" },
+      { t: "h", v: "Tuning, and why the first tune failed" },
+      { t: "p", v: "The first Simulink tune (Kp = 0.0088, Ki = 0.7908) looked great on paper: 0.167 s rise, 0.22 % overshoot, 64.7° phase margin. A hardware-in-the-loop setup, with the real board talking to the Simulink plant over serial, caught a units bug first: elapsed time was in milliseconds instead of seconds." },
+      { t: "img", src: "images/power-controller/hil-sim.jpg", caption: "Hardware-in-the-loop run: the ESP32 controls a simulated motor" },
+      { t: "p", v: "Then two test matrices on the real motor (11 gain sets, scored by ISE) showed the real limit. The ESC only gets a new PWM pulse every 20 ms receiver frame, about 30 ms in practice, while the tune assumed continuous time. Aggressive gains oscillated: test 4 hit 58.5 % overshoot, with the PWM banging between maximum and minimum. The rule that came out of it: give the controller at least 20 iterations during the rise, so the rise time should be at least 600 ms." },
+      { t: "img", src: "images/power-controller/kalman.jpg", caption: "1-D Kalman filter on each sensor channel: grey is raw, red is filtered" },
+      { t: "p", v: "The final tune is a pure integrator, Ki = 0.25 with Kp = Kd = 0: 1.19 s rise, 2.36 s settling, 0 % overshoot, 33 dB gain margin, 94.3° phase margin. It gives up the < 1 s settling target to never overshoot the cap." },
+      { t: "img", src: "images/power-controller/final-step.jpg", caption: "Bench step response to 680 W" },
+      { t: "open", id: "pid-lab", label: "Try the gain sets yourself in PID Lab" },
+      { t: "h", v: "Wind tunnel" },
+      { t: "p", v: "In the wind tunnel, with a different propeller (APC 21×13.5) and ESC (T-Motor 70A), the controller held the 2025 cap of 600 W from 2 to 20 m/s. As the airflow helped turn the propeller, the controller lowered the throttle from 69.7 % at 0 m/s to 64.1 % at 8 m/s: same power, less battery." },
+      { t: "img", src: "images/power-controller/wind-tunnel.jpg", caption: "Test bench at the tunnel outlet, with an anemometer measuring the real airspeed" },
+      { t: "img", src: "images/power-controller/wind-results.jpg", caption: "Throttle (blue) and power (green) across the airspeed bands" },
+      { t: "h", v: "Prototype 2: the IGNIS PCB" },
+      { t: "p", v: "With the method proven, the next step was a real board. It's a 2-layer FR-4 PCB designed in KiCad: a bare ESP32 chip, USB-C with a CH340G, AMS1117 3.3 V / 5 V regulators fed from the receiver's 6 V bus (so no extra battery), an integrated SD card, and optional BMP280 / BMA253 sensors for future projects. Traces were sized to IPC-2152 in Saturn PCB. Ground planes on both layers, with via stitching around the analog traces, shield against EMI." },
+      { t: "img", src: "images/power-controller/pcb-render.jpg", caption: "KiCad 3D render" },
+      { t: "img", src: "images/power-controller/pcb-back.jpg", caption: "Bare board from PCBWay" },
+      { t: "p", v: "There was no reflow oven, so the board was assembled on an old clothes iron driven by a dimmer, held at 155 °C (checked with an IR thermometer), with low-temperature Sn42Bi58 paste." },
+      { t: "img", src: "images/power-controller/reflow-iron.jpg", caption: "The 'reflow station'" },
+      { t: "img", src: "images/power-controller/pcb-assembled.jpg", caption: "Assembled board" },
+      { t: "h", v: "Bring-up and debugging" },
+      { t: "list", items: [
+        "A 5 V–GND short found in the continuity test was cut with a hobby knife.",
+        "Code uploads worked only once: the CH340G was fed 5 V instead of 3.3 V.",
+        "The ADS1115 died after about 5 minutes, every time. Fixes: a 3.3 V supply, an op-amp buffer in front of its inputs, and the long parallel I²C traces (a crosstalk risk) replaced by an external jumper.",
+        "It passed a 72 h stress test. The mean loop is 9.4 ms; SD writes, batched every 10 s, cause stalls over 90 ms in only 0.0013 % of cycles.",
+      ]},
+      { t: "img", src: "images/power-controller/i2c-crosstalk.jpg", caption: "The I²C traces running side by side for a long stretch" },
+      { t: "h", v: "P1 vs P2" },
+      { t: "table", head: ["", "P1 (perfboard)", "P2 (IGNIS)"], rows: [
+        ["Voltage noise variance", "3.280", "0.300 (10.9× lower)"],
+        ["Current noise variance", "11.415", "1.155 (9.9× lower)"],
+        ["Mass", "128 g (without battery)", "56 g (complete)"],
+        ["Size", "180 × 120 mm", "95 × 60 mm"],
+      ]},
+      { t: "img", src: "images/power-controller/p1-vs-p2-noise.jpg", caption: "Raw current reading during calibration: P1 (grey) vs P2 (red)" },
+      { t: "open", id: "kalman", label: "Play with the filter in Kalman Filter" },
+      { t: "h", v: "Is it safe to fly?" },
+      { t: "p", v: "The controller sits between the pilot and the motor, so a failure can cost the aircraft. The analysis listed 61 failure modes across hardware, software and the system, then ran a fault tree analysis and an FMEA. The 118 mm critical analog trace is far longer than λ/10 at 2.4 GHz (12.5 mm), so it was simulated in openEMS from 1 to 9 GHz. The trace can pick up signals in that band, but very little field leaks outside it, which confirms the shielding works." },
+      { t: "img", src: "images/power-controller/emi-sim.jpg", caption: "openEMS simulation of the electric field along the critical trace" },
+      { t: "p", v: "In the FMEA, only one controller risk scores higher than the worst risk the aircraft already accepts (a wrong wattmeter reading, RPN 400): EMI, at RPN 560." },
+      { t: "open", id: "fmea", label: "Explore the full FMEA Board" },
+      { t: "h", v: "Results & next steps" },
+      { t: "p", v: "The controller held the power limit on the bench and in the wind tunnel, and the PCB cut noise about 10× while it more than halved the mass and size. The open items are flight tests with the board on the aircraft, practical EMI testing, and a Markov-chain reliability model. Time ran out for all three." },
+      { t: "credit", title: "Research", lines: [
+        "Scientific initiation (IC) scholarship, call 01/2024, UFABC",
+        "Advisor: Prof. Diego Paolo Ferruzzo Correa",
+        "Built on Harpia Aerodesign UFABC's 2024 propulsion system",
+      ]},
     ],
+  },
+  {
+    id: "pid-lab",
+    title: "PID Lab",
+    icon: "🎛️",
+    tagline: "Interactive simulator of the power controller's closed loop",
+    tech: ["Simulation", "PID", "Discrete-time control"],
+    cover: null,
+    size: { w: 680, h: 640 },
+    body: [],
+    component: PIDLab,
+  },
+  {
+    id: "kalman",
+    title: "Kalman Filter",
+    icon: "📉",
+    tagline: "Tune the 1-D Kalman filters that clean the voltage and current signals",
+    tech: ["Signal processing", "Kalman filter", "ADC calibration"],
+    cover: null,
+    size: { w: 640, h: 620 },
+    body: [],
+    component: KalmanLab,
+  },
+  {
+    id: "fmea",
+    title: "FMEA Board",
+    icon: "⚠️",
+    tagline: "Failure modes and risk priority numbers from the controller's safety analysis",
+    tech: ["FMEA", "Reliability", "Safety"],
+    cover: null,
+    size: { w: 620, h: 600 },
+    body: [],
+    component: FMEABoard,
   },
   {
     id: "airplane",
@@ -267,10 +378,53 @@ function useAudioEngine() {
 const CONTACT_ICONS = { mail: Mail, linkedin: Linkedin, github: Github, instagram: Instagram };
 
 /* --------------------------- CONTENT ------------------------------- */
-function MiniBody({ blocks, sfx }) {
+function MiniBody({ blocks, sfx, onOpen }) {
   return (
     <div style={{ fontSize: 13, lineHeight: 1.5, color: "#000" }}>
       {blocks.map((b, i) => {
+        if (b.t === "list")
+          return (
+            <ul key={i} style={{ margin: "0 0 10px", paddingLeft: 20 }}>
+              {b.items.map((it, j) => <li key={j} style={{ marginBottom: 4 }}>{it}</li>)}
+            </ul>
+          );
+        if (b.t === "table")
+          return (
+            <div key={i} style={{ overflowX: "auto", margin: "6px 0 12px", ...bevel.sunkenOuter, padding: 2 }}>
+              <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>
+                {b.head && (
+                  <thead>
+                    <tr>
+                      {b.head.map((h, j) => (
+                        <th key={j} style={{ textAlign: "left", padding: "3px 6px", background: "#c0c0c0", ...bevel.buttonFlat }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                )}
+                <tbody>
+                  {b.rows.map((r, j) => (
+                    <tr key={j} style={{ background: j % 2 ? "#f3f3f3" : "#fff" }}>
+                      {r.map((c, k) => (
+                        <td key={k} style={{ padding: "3px 6px", verticalAlign: "top", fontWeight: k === 0 ? 700 : 400, whiteSpace: k === 0 ? "nowrap" : "normal" }}>{c}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        if (b.t === "open")
+          return (
+            <button
+              key={i}
+              onClick={() => onOpen && onOpen(b.id)}
+              onMouseEnter={() => sfx && sfx.hover()}
+              style={{ display: "flex", alignItems: "center", gap: 6, margin: "4px 0 12px", padding: "5px 10px", fontSize: 12, background: "#c0c0c0", cursor: "pointer", border: "none", fontFamily: "inherit", ...bevel.buttonFlat }}
+            >
+              <span>{(PROJECTS.find((p) => p.id === b.id) || {}).icon}</span>
+              {b.label} ▸
+            </button>
+          );
         if (b.t === "h")
           return (
             <h3 key={i} style={{ fontSize: 14, fontWeight: 700, margin: "14px 0 6px", color: "#000080" }}>
@@ -348,7 +502,7 @@ function MiniBody({ blocks, sfx }) {
 }
 
 /* ---------------------------- WINDOW ------------------------------ */
-function Win95Window({ win, project, isMobile, isActive, onFocus, onClose, onMinimize, onToggleMaximize, onDrag, onResize, onSetWallpaper, sfx }) {
+function Win95Window({ win, project, isMobile, isActive, onFocus, onClose, onMinimize, onToggleMaximize, onDrag, onResize, onSetWallpaper, onOpenProject, sfx }) {
   const dragRef = useRef({ dragging: false, offX: 0, offY: 0 });
   const resizeRef = useRef({ resizing: false, startX: 0, startY: 0, startW: 0, startH: 0 });
 
@@ -479,7 +633,8 @@ function Win95Window({ win, project, isMobile, isActive, onFocus, onClose, onMin
             ))}
           </div>
         )}
-        <MiniBody blocks={project.body} sfx={sfx} />
+        <MiniBody blocks={project.body} sfx={sfx} onOpen={onOpenProject} />
+        {project.component && <project.component sfx={sfx} />}
       </div>
 
       {!isMobile && !win.maximized && (
@@ -633,12 +788,14 @@ export default function PortfolioOS() {
   const [startOpen, setStartOpen] = useState(false);
   const [clock, setClock] = useState(new Date());
   const [wallpaper, setWallpaper] = useState(null);
-  const [iconPos, setIconPos] = useState(() =>
-    PROJECTS.reduce((acc, p, i) => {
-      acc[p.id] = { x: 16, y: 16 + i * (ICON_H + 10) };
+  const [iconPos, setIconPos] = useState(() => {
+    // stack icons in columns that fit above the taskbar
+    const perCol = Math.max(1, Math.floor((Math.max(window.innerHeight, 560) - 60) / (ICON_H + 10)));
+    return PROJECTS.reduce((acc, p, i) => {
+      acc[p.id] = { x: 16 + Math.floor(i / perCol) * (ICON_W + 12), y: 16 + (i % perCol) * (ICON_H + 10) };
       return acc;
-    }, {})
-  );
+    }, {});
+  });
 
   const { sfx, volume, setVolume, muted, setMuted, musicOn, setMusicOn } = useAudioEngine();
 
@@ -661,7 +818,12 @@ export default function PortfolioOS() {
       const existing = prev.find((w) => w.id === id);
       if (existing) return prev.map((w) => (w.id === id ? { ...w, minimized: false, z: zTop + 1 } : w));
       const idx = prev.length;
-      return [...prev, { id, x: 60 + idx * 26, y: 40 + idx * 26, w: 480, h: 400, z: zTop + 1, minimized: false, maximized: false }];
+      const size = (PROJECTS.find((p) => p.id === id) || {}).size || { w: 480, h: 400 };
+      const w = Math.min(size.w, window.innerWidth - 20);
+      const h = Math.min(size.h, window.innerHeight - 60);
+      const x = Math.max(0, Math.min(100 + idx * 26, window.innerWidth - w - 10));
+      const y = Math.max(0, Math.min(20 + idx * 26, window.innerHeight - h - 46));
+      return [...prev, { id, x, y, w, h, z: zTop + 1, minimized: false, maximized: false }];
     });
     setZTop((z) => z + 1);
   };
@@ -725,6 +887,7 @@ export default function PortfolioOS() {
             onDrag={(x, y) => dragWin(w.id, x, y)}
             onResize={(w2, h2) => resizeWin(w.id, w2, h2)}
             onSetWallpaper={setWallpaper}
+            onOpenProject={openProject}
             sfx={sfx}
           />
         );

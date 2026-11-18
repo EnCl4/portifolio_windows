@@ -851,3 +851,6 @@ export function FMEABoard({ sfx }) {
     </div>
   );
 }
+
+// Shared UI pieces, reused by the Alaris apps (alaris_apps.jsx)
+export { RAISED, SUNKEN, ui, Group, Btn, Chart, Legend, Stat, Slider, makeGauss };

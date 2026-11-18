@@ -3,6 +3,7 @@ import { X, Minus, Square, ChevronsUp, Volume2, VolumeX, Music, Mail, Github, Li
 import { PIDLab, KalmanLab, FMEABoard } from "./research_apps";
 import { SessionLibrary, RacePace, LapCompare } from "./f1_apps";
 import { BoardExplorer, RTOSScheduler, FailsafePanel, SignalChain } from "./alaris_apps";
+import { SkillsMap } from "./about_apps";
 
 /* ==================================================================
    HOW TO ADD A NEW PROJECT
@@ -484,25 +485,78 @@ const PROJECTS = [
     id: "about",
     title: "About Me",
     icon: "👤",
-    tagline: "Engineer & maker",
-    tech: [],
+    tagline: "Aerospace engineer from UFABC, intern at Boeing (CCS / IMA), AI systems, embedded systems & avionics",
+    tech: ["AI systems", "Embedded systems", "Avionics", "Control", "PCB design"],
     cover: null,
+    size: { w: 580, h: 600 },
     body: [
       { t: "h", v: "Hi, I'm Enzo Claro" },
-      { t: "p", v: "Engineer by trade, maker by habit. This site is a running log of things I've built, from CNC hardware to LLM pipelines — with the reasoning behind each decision, not just the finished photo." },
-      { t: "p", v: "Double-click an icon (or tap one) to open a project. Click a project's main photo to set it as the desktop wallpaper." },
+      { t: "p", v: "I'm an aerospace engineer from the Universidade Federal do ABC (UFABC), currently an intern at Boeing. I work on two things: AI systems that support systems engineering, and embedded avionics (sensors, PCBs, real-time firmware and the control loops that run on them)." },
+      { t: "h", v: "Experience" },
+      { t: "role", org: "Boeing", title: "Intern, Common Core System (CCS) / Integrated Modular Avionics (IMA)", when: "Mar–Dec 2026" },
+      { t: "list", items: [
+        "Develop AI systems that help engineers in the verification process.",
+        "Build other AI applications for my team.",
+        "Won the AI for Systems Engineering hackathon with a multi-agent architecture where the agents are organized as a hierarchy, modeled on a social pyramid.",
+      ]},
+      { t: "role", org: "Harpia Aerodesign UFABC", title: "SAE Brasil Aerodesign team" },
+      { t: "list", items: [
+        "Built the IGNIS power controller and the Project Alaris avionics for the team's competition aircraft.",
+      ]},
+      { t: "h", v: "Education" },
+      { t: "role", org: "Universidade Federal do ABC (UFABC)", title: "Aerospace Engineering" },
+      { t: "list", items: [
+        "Graduation thesis (August 2026): Project Alaris, a guidance, navigation and control system for an aircraft that flies in ground effect. My part was the embedded system.",
+        "Scientific initiation (IC) research, 2024–2025: the IGNIS power controller.",
+      ]},
+      { t: "h", v: "Projects" },
+      { t: "p", v: "Each project describes the problem, the design decisions, the test results and what is still open." },
+      { t: "table", head: ["Project", "What it is"], rows: [
+        ["Power Controller", "An ESP32 PID controller that keeps a UAV's motor at the competition power cap, from system identification to a custom PCB and wind-tunnel tests."],
+        ["Project Alaris", "Distributed avionics (STM32 + ESP32-C3, FreeRTOS, federated EKFs) for an RC aircraft that flies in ground effect."],
+        ["F1 Data Center", "A lossless telemetry recorder and lap-analysis tool for F1 23, written in Python and TypeScript."],
+      ]},
+      { t: "open", id: "PowerController", label: "Open Power Controller" },
+      { t: "open", id: "Alaris", label: "Open Project Alaris" },
+      { t: "open", id: "F1-DataCenter", label: "Open F1 Data Center" },
+      { t: "h", v: "Skills" },
+      { t: "list", items: [
+        "AI systems: multi-agent architectures and AI tools for systems engineering and verification.",
+        "Embedded firmware: ESP32 and STM32, FreeRTOS, DMA, SPI / UART / I²C, sensor bring-up.",
+        "Hardware: sensor front-ends, power budgets, schematics and PCBs in KiCad, bench debugging.",
+        "Control and estimation: PID tuning, system identification, Kalman and extended Kalman filters, MATLAB / Simulink.",
+        "Safety: FMEA, fault-tree analysis, state machines and health management.",
+        "Software and data: Python, TypeScript / React, binary parsers, Parquet + DuckDB, testing against real data.",
+      ]},
+      { t: "open", id: "skills", label: "See where each skill was used in Skills Map" },
+      { t: "h", v: "Other interests" },
+      { t: "p", v: "Sim racing. The F1 Steering Wheel and F1 Data Center projects came from it." },
       { t: "h", v: "Get in touch" },
+      { t: "p", v: "Open to roles and collaborations in AI systems, embedded systems, avionics and aerospace engineering." },
       { t: "links", items: [
         { icon: "mail", label: "Email", url: "mailto:enzoclaro2003@gmail.com" },
         { icon: "linkedin", label: "LinkedIn", url: "https://www.linkedin.com/in/enzo-claro/" },
         { icon: "github", label: "GitHub", url: "https://github.com/EnCl4" },
         { icon: "instagram", label: "Instagram", url: "https://www.instagram.com/en_cl3/" },
       ]},
+      { t: "h", v: "Using this site" },
+      { t: "p", v: "Double-click an icon (or tap it) to open a project. Folders hold a project and its interactive apps. Click a project's main photo to set it as the wallpaper." },
       { t: "credit", title: "Music", lines: [
         "Track: Everyone Has a Story",
         { text: "Music by ", url: "https://www.fiftysounds.com", label: "https://www.fiftysounds.com" },
       ]},
     ],
+  },
+  {
+    id: "skills",
+    title: "Skills Map",
+    icon: "🧰",
+    tagline: "Every skill I list, and the project where you can check it",
+    tech: ["Interactive", "Evidence-linked"],
+    cover: null,
+    size: { w: 620, h: 600 },
+    body: [],
+    component: SkillsMap,
   },
 ];
 
@@ -728,6 +782,16 @@ function MiniBody({ blocks, sfx, onOpen }) {
               <span>{(PROJECTS.find((p) => p.id === b.id) || {}).icon}</span>
               {b.label} ▸
             </button>
+          );
+        if (b.t === "role")
+          return (
+            <div key={i} style={{ margin: "8px 0 4px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                <span style={{ fontWeight: 700 }}>{b.org}</span>
+                {b.when && <span style={{ fontSize: 12, color: "#555" }}>{b.when}</span>}
+              </div>
+              {b.title && <div style={{ fontSize: 12, fontStyle: "italic", color: "#333" }}>{b.title}</div>}
+            </div>
           );
         if (b.t === "h")
           return (

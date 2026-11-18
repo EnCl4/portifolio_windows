@@ -368,6 +368,16 @@ const PROJECTS = [
         "Links: SPI full-duplex DAPU ⇄ GNCU (critical: state estimate down, actuator state and mode back), UART DAPU ⇄ CGU (non-critical telemetry).",
       ]},
       { t: "open", id: "alaris-rtos", label: "Watch the three schedulers in RTOS Scheduler" },
+      { t: "h", v: "Letting DMA move the data" },
+      { t: "p", v: "The CPU shouldn't spend time copying bytes, and no data should be lost when a higher-priority task runs. So on the DAPU the two continuous data streams, the GPS and the ADC, are moved into memory by DMA in circular mode, without the CPU." },
+      { t: "p", v: "GPS. The NEO-M8N leaves the factory at 9600 baud, NMEA text. A 100-byte UBX NAV-PVT message at 10 Hz needs about 10 kbit/s, so it simply doesn't fit. At boot the firmware sends CFG-PRT at both 9600 and 115200 baud, so it works whatever state the module was left in. It then turns off every NMEA sentence, enables only NAV-PVT, sets 10 Hz, GPS + GLONASS + Galileo + SBAS and the 'airborne < 1 g' dynamic model, and saves the configuration in the module. Every checksum in the configuration frames is computed, never hand-written." },
+      { t: "list", items: [
+        "USART2 RX goes to DMA1 Stream 1, circular, very high priority, into a 512-byte ring. There's no interrupt per byte; at 115200 baud the hardware just keeps filling the ring.",
+        "Every 10 ms the GPS task reads where the DMA is writing (from its transfer counter) and feeds only the new bytes to a UBX state machine: sync, class, ID, length, payload, then the Fletcher checksum. A frame with a bad checksum is dropped and counted.",
+        "A valid NAV-PVT is decoded into the shared state under the mutex (position, velocities, accuracy, satellites, fix type), and the 3D-fix flag is updated. The frame and checksum-error counters feed health management.",
+        "At 10 Hz a frame arrives every 100 ms and the ring holds about 5 frames, so even a task delayed by a higher priority never loses data.",
+      ]},
+      { t: "p", v: "ADC. All seven analog channels (three flex sensors, AOA, battery, pitot, mic) are one scan triggered by TIM2 at 1024 Hz. 1024 Hz can't be generated exactly from a 100 MHz clock (100 MHz / 97 656 = 1024.0026 Hz), so that small error is carried into the FFT bin scaling. DMA1 Stream 0 writes the scans into a circular buffer of two 1024-scan halves, one second each. The half-complete and complete callbacks hand a full second of mic samples to the RPM task through a semaphore, while the 200 Hz tasks average 5 scans from the same buffer. The sample clock comes from hardware, so the FFT never sees polling jitter." },
       { t: "h", v: "State estimation: federated EKFs" },
       { t: "p", v: "Instead of one big filter, each quantity has its own EKF in its own task. Errors can't flow back up the chain, so it's sub-optimal, but each filter is far easier to implement, tune and validate on a microcontroller. Dependencies only go one way: attitude first, then altitude and position, which wait on a signal from the attitude task instead of polling." },
       { t: "list", items: [
@@ -380,7 +390,9 @@ const PROJECTS = [
       { t: "p", v: "Manual vs autonomous is a separate machine on the GNCU. Auto is never on at boot. It needs an explicit pilot switch, confirmed over several consecutive PWM reads so a glitch can't engage it. Going back to manual is immediate, and a DAPU Failsafe forces it over SPI whatever the switch says. The RC input is read the whole time, so the pilot can always take over." },
       { t: "open", id: "alaris-failsafe", label: "Power it up and break things in Failsafe Panel" },
       { t: "h", v: "Results" },
-      { t: "p", v: "The PCB couldn't be manufactured in time, so validation was done on representative hardware (protoboard), subsystem by subsystem. Every sensor responded correctly to controlled stimuli. Indoors, the GPS still reached 2.1 m 3D / 1.6 m 2D accuracy." },
+      { t: "p", v: "The PCB couldn't be manufactured in time, so validation was done on representative hardware (protoboard), subsystem by subsystem. Every sensor responded correctly to controlled stimuli." },
+      { t: "p", v: "The NEO-M8N was checked over UART in u-blox u-center. Even indoors, which degrades GNSS reception, it tracked GPS and GLONASS satellites together, got a 3D fix, and reached 2.1 m 3D / 1.6 m 2D accuracy. The aircraft will fly in the open, so that's a comfortable result." },
+      { t: "img", src: "images/alaris/gps-ucenter.png", caption: "u-center during the GPS test: GPS + GLONASS signal strengths, sky plot and a 3D fix (coordinates blurred)" },
       { t: "table", head: ["Task", "Target", "Measured"], rows: [
         ["Log loop (base)", "200 Hz", "200.01 Hz"],
         ["ICM-20948", "200 Hz", "200.00 Hz"],

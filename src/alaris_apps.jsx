@@ -75,6 +75,7 @@ const NODES = {
       ["Digital sensors", "ICM-20948 IMU, BMP390 + MS5611 barometers, u-blox NEO-M8N GNSS"],
       ["Analog sensors", "Pitot (MPS20N0040D + INA333, G = 1000), AOA vane potentiometer, electret mic (prop RPM), 3 flex sensors (surface deflection), battery voltage divider"],
       ["Estimation", "Federated EKFs: attitude (6 states), altitude (3), velocity/position (7)"],
+      ["DMA", "GPS: USART2 RX → DMA1 Stream 1, circular 512-byte ring at 115200 baud, drained every 10 ms by a UBX parser. ADC: TIM2-triggered 7-channel scan at 1024 Hz → DMA1 Stream 0, circular, two 1 s halves for the mic FFT"],
       ["Storage", "SD card over SDMMC"],
     ],
   },
@@ -237,7 +238,7 @@ const UNITS = {
     tasks: (osr16) => [
       ["Save data (log loop)", 14, 5, 0.4, 0],
       ["Transmit data", 13, 100, 0.3, 2],
-      ["GPS (NEO-M8N)", 12, 100, 0.25, 1],
+      ["GPS (drain DMA ring)", 12, 10, 0.05, 1],
       ["IMU (ICM-20948)", 11, 5, 0.12, 0],
       ["Attitude fusion", 10, 5, 0.25, 0],
       ["Pitot", 9, 5, 0.03, 0],
@@ -458,7 +459,10 @@ export function RTOSScheduler({ sfx }) {
       {unit === "CGU" && (
         <Note>The CGU isn't in any control loop, so here FreeRTOS just keeps the web server from blocking data collection.</Note>
       )}
-      <Note>Priorities and rates are from the thesis; execution times are illustrative. Push the load up to watch the lowest-priority tasks starve first while the critical ones keep their period.</Note>
+      {unit === "DAPU" && (
+        <Note>GPS bytes and ADC samples are moved into memory by DMA, so they keep arriving even while a task is preempted. The GPS task only drains the ring every 10 ms, and the RPM task wakes once per second when a 1024-sample half of the ADC buffer is full.</Note>
+      )}
+      <Note>Priorities and rates are from the thesis and firmware; execution times are illustrative. Push the load up to watch the lowest-priority tasks starve first while the critical ones keep their period.</Note>
     </div>
   );
 }
